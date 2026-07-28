@@ -47,6 +47,18 @@ Run the complete pipeline:
 python src/pipeline.py
 ```
 
+## Pipeline Diagram
+
+A high-level pipeline:
+
+- Ingest raw data -> Clean data -> Engineer features (incl. RFM) -> Select features -> Train model -> Evaluate -> Save model
+
+You can use branches as follows:
+- `main` — stable, tagged releases
+- `dev` — integration
+- `feature/*` — per feature (e.g., `feature/rfm-features`)
+- `experiment/*` — per ML experiment (e.g., `experiment/xgboost-scale-pos`)
+
 ## Requirements
 
 See `requirements.txt` for dependencies.

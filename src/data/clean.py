@@ -17,6 +17,10 @@ def clean_data(df: pd.DataFrame, config: dict = None) -> pd.DataFrame:
     """
     df = df.copy()
     
+    # Remove cancelled invoices (Invoice values starting with 'C') if present
+    if "Invoice" in df.columns:
+        df = df[~df["Invoice"].astype(str).str.startswith("C")]
+
     # Handle missing values
     df = handle_missing_values(df)
     

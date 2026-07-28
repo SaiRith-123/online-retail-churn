@@ -3,6 +3,10 @@
 import logging
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+try:
+    from xgboost import XGBClassifier
+except Exception:
+    XGBClassifier = None
 from sklearn.preprocessing import StandardScaler
 import mlflow
 import pandas as pd
@@ -48,6 +52,10 @@ def train_model(df: pd.DataFrame, config: dict):
     # Train model
     if model_type == "random_forest":
         model = RandomForestClassifier(**hyperparams)
+    elif model_type == "xgboost":
+        if XGBClassifier is None:
+            raise ImportError("XGBoost is not installed in the environment")
+        model = XGBClassifier(**hyperparams, use_label_encoder=False, eval_metric='logloss')
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
