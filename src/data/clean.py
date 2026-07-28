@@ -1,60 +1,32 @@
-"""Data cleaning module"""
-
 import pandas as pd
-import numpy as np
 
 
-def clean_data(df: pd.DataFrame, config: dict = None) -> pd.DataFrame:
-    """
-    Clean and preprocess data.
-    
-    Args:
-        df: Input DataFrame
-        config: Configuration dictionary
-        
-    Returns:
-        Cleaned DataFrame
-    """
-    df = df.copy()
-    
-    # Remove cancelled invoices (Invoice values starting with 'C') if present
-    if "Invoice" in df.columns:
+def clean(df, cfg):
+    rules = cfg["cleaning"]
+
+    # Standardize types
+    df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"], errors="coerce")
+    df["Customer ID"] = pd.to_numeric(df["Customer ID"], errors="coerce")
+
+    if rules["drop_null_customer_id"]:
+        df = df[df["Customer ID"].notna()]
+
+    if rules["drop_cancelled_invoices"]:
         df = df[~df["Invoice"].astype(str).str.startswith("C")]
 
-    # Handle missing values
-    df = handle_missing_values(df)
-    
-    # Remove duplicates
+    if rules["drop_negative_quantity"]:
+        df = df[df["Quantity"] > 0]
+
+    if rules["drop_non_positive_price"]:
+        df = df[df["Price"] > 0]
+
+    if rules["drop_postage"]:
+        df = df[df["StockCode"].astype(str).str.upper() != "POST"]
+
     df = df.drop_duplicates()
-    
-    # Detect and handle outliers
-    if config and config.get("preprocessing", {}).get("outlier_detection"):
-        df = handle_outliers(df)
-    
-    return df
+    df["Customer ID"] = df["Customer ID"].astype(int)
+    return df.reset_index(drop=True)
 
 
-def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-    """Handle missing values in the dataset."""
-    # Drop rows with critical missing values
-    df = df.dropna(subset=df.columns[:3])  # Adjust based on your data
-    
-    # Fill remaining missing values
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].mean())
-    
-    categorical_cols = df.select_dtypes(include=['object']).columns
-    df[categorical_cols] = df[categorical_cols].fillna("Unknown")
-    
-    return df
-
-
-def handle_outliers(df: pd.DataFrame, threshold: float = 3.0) -> pd.DataFrame:
-    """Remove outliers using z-score method."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    
-    for col in numeric_cols:
-        z_scores = np.abs((df[col] - df[col].mean()) / df[col].std())
-        df = df[z_scores < threshold]
-    
-    return df
+# Backwards-compatible alias used elsewhere in the codebase
+clean_data = clean
