@@ -1,35 +1,20 @@
-"""Data ingestion module"""
-
 import pandas as pd
-from pathlib import Path
+import yaml
 
 
-def load_data(filepath: str) -> pd.DataFrame:
+def load_config(path: str = "config/config.yaml") -> dict:
+    """Load YAML configuration from `path` and return as dict."""
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def load_raw(cfg: dict) -> pd.DataFrame:
+    """Load the raw CSV specified in `cfg`.
+
+    Reads the CSV using ISO-8859-1 encoding and strips whitespace
+    from column names to make downstream code more robust.
     """
-    Load data from CSV file.
-    
-    Args:
-        filepath: Path to the CSV file
-        
-    Returns:
-        DataFrame containing the loaded data
-    """
-    if not Path(filepath).exists():
-        raise FileNotFoundError(f"Data file not found: {filepath}")
-    
-    df = pd.read_csv(filepath)
+    path = cfg["data"]["raw_path"]
+    df = pd.read_csv(path, encoding="ISO-8859-1")
+    df.columns = [c.strip() for c in df.columns]
     return df
-
-
-def load_raw_data(config: dict) -> pd.DataFrame:
-    """
-    Load raw data using configuration.
-    
-    Args:
-        config: Configuration dictionary
-        
-    Returns:
-        Raw DataFrame
-    """
-    raw_path = config.get("data", {}).get("raw_path")
-    return load_data(raw_path)
