@@ -1,0 +1,11 @@
+stages:
+  preprocess:
+    cmd: python src/pipeline.py
+    deps:
+      - src/data/ingest.py
+      - src/data/clean.py
+      - src/data/features.py
+      - src/pipeline.py
+      - data/raw/online_retail_II.csv
+    outs:
+      - data/processed/customer_features.parquet
