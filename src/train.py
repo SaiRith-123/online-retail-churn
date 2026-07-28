@@ -1,82 +1,118 @@
-"""Model Training Module"""
-
-import logging
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-try:
-    from xgboost import XGBClassifier
-except Exception:
-    XGBClassifier = None
-from sklearn.preprocessing import StandardScaler
-import mlflow
 import pandas as pd
+import numpy as np
+import mlflow
+import mlflow.sklearn
+import yaml
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import (
+    roc_auc_score, f1_score, precision_score, recall_score,
+    accuracy_score, confusion_matrix, classification_report
+)
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
+from src.data.ingest import load_config
 
 
-logger = logging.getLogger(__name__)
+def load_features(cfg):
+    return pd.read_parquet(cfg["data"]["processed_path"])
 
 
-def train_model(df: pd.DataFrame, config: dict):
-    """
-    Train a machine learning model.
-    
-    Args:
-        df: Processed DataFrame with features
-        config: Configuration dictionary
-        
-    Returns:
-        Trained model
-    """
-    # Separate features and target (adjust based on your target variable)
-    # Assuming last column is the target
-    X = df.iloc[:, :-1]
-    y = df.iloc[:, -1]
-    
-    # Split data
-    test_size = config.get("data", {}).get("test_size", 0.2)
-    random_state = config.get("data", {}).get("random_state", 42)
-    
+def build_model_pipeline(model, numeric_feats, cat_feats):
+    pre = ColumnTransformer([
+        ("num", StandardScaler(), numeric_feats),
+        ("cat", "passthrough", cat_feats),
+    ])
+    return ImbPipeline([
+        ("preprocess", pre),
+        ("smote", SMOTE(random_state=42)),
+        ("clf", model),
+    ])
+
+
+def evaluate(y_true, y_pred, y_proba):
+    return {
+        "roc_auc": roc_auc_score(y_true, y_proba),
+        "f1": f1_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred),
+        "recall": recall_score(y_true, y_pred),
+        "accuracy": accuracy_score(y_true, y_pred),
+    }
+
+
+def train():
+    cfg = load_config()
+    df = load_features(cfg)
+
+    numeric_feats = ["recency", "frequency", "monetary", "total_items",
+                     "avg_basket_size", "n_unique_products", "tenure_days",
+                     "avg_days_between_purchases"]
+    cat_feats = ["country"]
+
+    X = df[numeric_feats + cat_feats]
+    y = df["churn"]
+
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state
+        X, y,
+        test_size=cfg["model"]["test_size"],
+        stratify=y, random_state=cfg["model"]["random_state"]
     )
-    
-    # Scale features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    # Get model configuration
-    model_config = config.get("model", {})
-    model_type = model_config.get("type", "random_forest")
-    hyperparams = model_config.get("hyperparameters", {})
-    
-    # Train model
-    if model_type == "random_forest":
-        model = RandomForestClassifier(**hyperparams)
-    elif model_type == "xgboost":
-        if XGBClassifier is None:
-            raise ImportError("XGBoost is not installed in the environment")
-        model = XGBClassifier(**hyperparams, use_label_encoder=False, eval_metric='logloss')
-    else:
-        raise ValueError(f"Unknown model type: {model_type}")
-    
-    # Start MLflow run
-    mlflow.start_run()
-    try:
-        model.fit(X_train_scaled, y_train)
-        
-        # Evaluate
-        train_score = model.score(X_train_scaled, y_train)
-        test_score = model.score(X_test_scaled, y_test)
-        
-        # Log metrics
-        mlflow.log_metric("train_accuracy", train_score)
-        mlflow.log_metric("test_accuracy", test_score)
-        mlflow.log_params(hyperparams)
-        
-        logger.info(f"Train Accuracy: {train_score:.4f}")
-        logger.info(f"Test Accuracy: {test_score:.4f}")
-        
-    finally:
-        mlflow.end_run()
-    
-    return model
+
+    candidates = {
+        "logreg": LogisticRegression(max_iter=1000, class_weight="balanced"),
+        "random_forest": RandomForestClassifier(
+            n_estimators=300, max_depth=None,
+            class_weight="balanced", random_state=42, n_jobs=-1),
+        "xgboost": XGBClassifier(
+            n_estimators=400, max_depth=6, learning_rate=0.05,
+            subsample=0.9, colsample_bytree=0.9,
+            scale_pos_weight=(y_train==0).sum()/(y_train==1).sum(),
+            eval_metric="logloss", random_state=42, n_jobs=-1),
+    }
+
+    mlflow.set_experiment("online_retail_churn")
+    best_run = None
+
+    for name, model in candidates.items():
+        with mlflow.start_run(run_name=name) as run:
+            pipe = build_model_pipeline(model, numeric_feats, cat_feats)
+            pipe.fit(X_train, y_train)
+
+            y_pred = pipe.predict(X_test)
+            y_proba = pipe.predict_proba(X_test)[:, 1]
+            metrics = evaluate(y_test, y_pred, y_proba)
+
+            mlflow.log_params(model.get_params())
+            mlflow.log_param("model_name", name)
+            mlflow.log_metrics(metrics)
+            mlflow.sklearn.log_model(pipe, artifact_path="model")
+
+            cv = StratifiedKFold(n_splits=cfg["model"]["cv_folds"],
+                                 shuffle=True, random_state=42)
+            cv_scores = cross_val_score(pipe, X_train, y_train,
+                                        cv=cv, scoring="roc_auc", n_jobs=-1)
+            mlflow.log_metric("cv_roc_auc_mean", cv_scores.mean())
+
+            print(f"\n=== {name} ===")
+            print(classification_report(y_test, y_pred))
+            print("Confusion matrix:\n", confusion_matrix(y_test, y_pred))
+
+            if best_run is None or metrics["roc_auc"] > best_run["roc_auc"]:
+                best_run = {"name": name, "run_id": run.info.run_id, **metrics}
+
+    print(f"\n✅ Best model: {best_run['name']} (AUC={best_run['roc_auc']:.4f})")
+
+    # Register best model
+    mlflow.register_model(
+        model_uri=f"runs:/{best_run['run_id']}/model",
+        name="churn_classifier_prod"
+    )
+
+
+if __name__ == "__main__":
+    train()
