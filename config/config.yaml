@@ -1,31 +1,21 @@
-# Configuration for Online Retail Churn Prediction Project
-
+# Project configuration
 data:
   raw_path: data/raw/online_retail_II.csv
   interim_path: data/interim/
-  processed_path: data/processed/
-  test_size: 0.2
-  random_state: 42
+  processed_path: data/processed/customer_features.parquet
 
-preprocessing:
-  handle_missing: true
-  outlier_detection: true
-  scaling: standard
+cleaning:
+  drop_null_customer_id: true
+  drop_cancelled_invoices: true        # Invoice starts with 'C'
+  drop_negative_quantity: true
+  drop_non_positive_price: true
+  drop_postage: true                   # StockCode == 'POST'
 
 features:
-  include_engineered: true
-  correlation_threshold: 0.95
+  reference_date: "2011-12-10"         # end of observation window
+  churn_threshold_days: 90             # no purchase in last 90 days => churn=1
 
 model:
-  type: xgboost
-  hyperparameters:
-    n_estimators: 100
-    max_depth: 6
-    learning_rate: 0.1
-    scale_pos_weight: 10
-    random_state: 42
-
-mlflow:
-  tracking_uri: mlruns/
-  experiment_name: online-retail-churn
-  run_name: baseline
+  test_size: 0.2
+  random_state: 42
+  cv_folds: 5
