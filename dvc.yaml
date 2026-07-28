@@ -1,6 +1,6 @@
 stages:
   preprocess:
-    cmd: python src/pipeline.py
+    cmd: python -m src.pipeline
     deps:
       - src/data/ingest.py
       - src/data/clean.py
