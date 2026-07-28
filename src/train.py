@@ -4,7 +4,7 @@ import mlflow
 import mlflow.sklearn
 import yaml
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
@@ -26,7 +26,7 @@ def load_features(cfg):
 def build_model_pipeline(model, numeric_feats, cat_feats):
     pre = ColumnTransformer([
         ("num", StandardScaler(), numeric_feats),
-        ("cat", "passthrough", cat_feats),
+        ("cat", OneHotEncoder(sparse_output=False, handle_unknown="ignore"), cat_feats),
     ])
     return ImbPipeline([
         ("preprocess", pre),
@@ -90,7 +90,16 @@ def train():
             mlflow.log_params(model.get_params())
             mlflow.log_param("model_name", name)
             mlflow.log_metrics(metrics)
-            mlflow.sklearn.log_model(pipe, artifact_path="model")
+            mlflow.sklearn.log_model(
+                pipe, 
+                artifact_path="model",
+                skops_trusted_types=[
+                    "imblearn.over_sampling._smote.base.SMOTE",
+                    "imblearn.pipeline.Pipeline",
+                    "xgboost.core.Booster",
+                    "xgboost.sklearn.XGBClassifier",
+                ]
+            )
 
             cv = StratifiedKFold(n_splits=cfg["model"]["cv_folds"],
                                  shuffle=True, random_state=42)
