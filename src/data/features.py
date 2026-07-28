@@ -89,3 +89,57 @@ def select_features(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     to_drop = [col for col in upper.columns if any(upper[col] > threshold)]
     
     return df.drop(columns=to_drop, errors="ignore")
+
+
+def build_features(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """
+    Build RFM-style customer features and churn label.
+
+    Args:
+        df: Cleaned transactions DataFrame with columns: `Customer ID`, `InvoiceDate`,
+            `Invoice`, `Quantity`, `Price`, `StockCode`, `Country`.
+        cfg: Configuration dict containing `features.reference_date` and
+            `features.churn_threshold_days`.
+
+    Returns:
+        DataFrame with one row per customer and RFM + behavioral features and `churn` label.
+    """
+    ref_date = pd.to_datetime(cfg["features"]["reference_date"]) 
+    churn_days = int(cfg["features"]["churn_threshold_days"])
+
+    df = df.copy()
+    # Ensure required columns
+    if "Quantity" in df.columns and ("Price" in df.columns or "UnitPrice" in df.columns):
+        price_col = "Price" if "Price" in df.columns else "UnitPrice"
+        df["TotalPrice"] = df["Quantity"] * df[price_col]
+    else:
+        df["TotalPrice"] = 0
+
+    g = df.groupby("Customer ID")
+
+    features = pd.DataFrame({
+        "Customer ID": g.size().index,
+        "recency": (ref_date - g["InvoiceDate"].max()).apply(lambda x: x.days),
+        "frequency": g["Invoice"].nunique(),
+        "monetary": g["TotalPrice"].sum(),
+        "total_items": g["Quantity"].sum(),
+        "avg_basket_size": g["TotalPrice"].mean(),
+        "n_unique_products": g["StockCode"].nunique(),
+        "country": g["Country"].first(),
+        "first_purchase": g["InvoiceDate"].min(),
+        "last_purchase": g["InvoiceDate"].max(),
+    }).reset_index(drop=True)
+
+    # Churn label: no purchase in last `churn_days` days before reference date
+    features["churn"] = (features["recency"] > churn_days).astype(int)
+
+    # Tenure in days
+    features["tenure_days"] = (ref_date - features["first_purchase"]).dt.days
+
+    # Avg time between purchases
+    features["avg_days_between_purchases"] = (
+        (features["last_purchase"] - features["first_purchase"]).dt.days
+        / features["frequency"].clip(lower=1)
+    )
+
+    return features
