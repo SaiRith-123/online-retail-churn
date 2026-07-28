@@ -1,3 +1,8 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import pandas as pd
 import numpy as np
 import mlflow
@@ -91,8 +96,8 @@ def train():
             mlflow.log_param("model_name", name)
             mlflow.log_metrics(metrics)
             mlflow.sklearn.log_model(
-                pipe, 
-                artifact_path="model",
+                pipe,
+                name="model",
                 skops_trusted_types=[
                     "imblearn.over_sampling._smote.base.SMOTE",
                     "imblearn.pipeline.Pipeline",
