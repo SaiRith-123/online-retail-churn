@@ -1,0 +1,30 @@
+# Configuration for Online Retail Churn Prediction Project
+
+data:
+  raw_path: data/raw/online_retail_II.csv
+  interim_path: data/interim/
+  processed_path: data/processed/
+  test_size: 0.2
+  random_state: 42
+
+preprocessing:
+  handle_missing: true
+  outlier_detection: true
+  scaling: standard
+
+features:
+  include_engineered: true
+  correlation_threshold: 0.95
+
+model:
+  type: random_forest
+  hyperparameters:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 5
+    random_state: 42
+
+mlflow:
+  tracking_uri: mlruns/
+  experiment_name: online-retail-churn
+  run_name: baseline
