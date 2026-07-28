@@ -1,66 +1,48 @@
-"""Model Prediction Module"""
+"""
+Real-time and batch inference module for churn prediction.
 
-import joblib
+Loads trained model from MLflow model registry and makes predictions
+on new customer data.
+"""
 import pandas as pd
-from pathlib import Path
+import mlflow
+import mlflow.sklearn
+from src.data.ingest import load_config
 
 
-def load_model(model_path: str):
-    """
-    Load a trained model from disk.
+def load_model(stage="Production"):
+    """Load trained model from MLflow model registry.
     
     Args:
-        model_path: Path to the saved model file
-        
-    Returns:
-        Loaded model
-    """
-    if not Path(model_path).exists():
-        raise FileNotFoundError(f"Model file not found: {model_path}")
+        stage: Model stage to load (Production, Staging, or None for latest)
     
-    model = joblib.load(model_path)
-    return model
-
-
-def make_predictions(X: pd.DataFrame, model) -> pd.DataFrame:
+    Returns:
+        Trained scikit-learn pipeline model
     """
-    Make predictions using a trained model.
+    return mlflow.sklearn.load_model(
+        model_uri=f"models:/churn_classifier_prod/{stage}"
+    )
+
+
+def predict(new_customer_df):
+    """Generate churn predictions for customer data.
     
     Args:
-        X: Input features DataFrame
-        model: Trained model
-        
-    Returns:
-        DataFrame with predictions
-    """
-    predictions = model.predict(X)
-    probabilities = model.predict_proba(X)
+        new_customer_df: DataFrame with customer features (no churn column needed)
     
-    results = pd.DataFrame({
-        "prediction": predictions,
-        "probability_class_0": probabilities[:, 0],
-        "probability_class_1": probabilities[:, 1]
+    Returns:
+        DataFrame with churn_probability and churn_flag (0/1) columns
+    """
+    model = load_model()
+    probs = model.predict_proba(new_customer_df)[:, 1]
+    return pd.DataFrame({
+        "churn_probability": probs,
+        "churn_flag": (probs >= 0.5).astype(int),
     })
-    
-    return results
 
 
-def batch_predict(data_path: str, model_path: str) -> pd.DataFrame:
-    """
-    Make predictions on a batch of data.
-    
-    Args:
-        data_path: Path to input data
-        model_path: Path to trained model
-        
-    Returns:
-        DataFrame with predictions
-    """
-    # Load data and model
-    X = pd.read_csv(data_path)
-    model = load_model(model_path)
-    
-    # Make predictions
-    predictions = make_predictions(X, model)
-    
-    return predictions
+if __name__ == "__main__":
+    cfg = load_config()
+    df = pd.read_parquet(cfg["data"]["processed_path"]).head(10)
+    X = df.drop(columns=["churn", "first_purchase", "last_purchase"])
+    print(predict(X))
