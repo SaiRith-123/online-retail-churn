@@ -5,25 +5,29 @@ Loads trained model from MLflow model registry and makes predictions
 on new customer data.
 """
 import os
+
 import pandas as pd
 import mlflow
 import mlflow.sklearn
 from src.data.ingest import load_config
 
 mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"))
+DEFAULT_STAGE = os.environ.get("DEFAULT_MODEL_STAGE", "Production")
 
 
-def load_model(stage="Production"):
+def load_model(stage: str | None = None):
     """Load trained model from MLflow model registry.
-    
+
     Args:
-        stage: Model stage to load (Production, Staging, or None for latest)
-    
+        stage: Model stage to load (Production, Staging, or None for latest).
+            Defaults to the environment setting DEFAULT_MODEL_STAGE.
+
     Returns:
         Trained scikit-learn pipeline model
     """
+    stage_name = stage or DEFAULT_STAGE
     return mlflow.sklearn.load_model(
-        model_uri=f"models:/churn_classifier_prod/{stage}"
+        model_uri=f"models:/churn_classifier_prod/{stage_name}"
     )
 
 

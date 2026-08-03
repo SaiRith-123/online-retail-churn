@@ -1,10 +1,17 @@
+import os
+from pathlib import Path
+
 import pandas as pd
 import yaml
 
 
-def load_config(path: str = "config/config.yaml") -> dict:
-    """Load YAML configuration from `path` and return as dict."""
-    with open(path, "r") as f:
+def load_config(path: str | None = None) -> dict:
+    """Load YAML configuration from the configured path or the default config file."""
+    if path is None:
+        path = os.getenv("APP_CONFIG", "config/config.yaml")
+
+    config_path = Path(path)
+    with config_path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

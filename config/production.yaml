@@ -1,0 +1,32 @@
+# Production-oriented runtime configuration
+# Keep local development defaults in config/config.yaml
+
+data:
+  raw_path: data/raw/online_retail_II.csv
+  interim_path: data/interim/
+  processed_path: data/processed/customer_features.parquet
+
+cleaning:
+  drop_null_customer_id: true
+  drop_cancelled_invoices: true
+  drop_negative_quantity: true
+  drop_non_positive_price: true
+  drop_postage: true
+
+features:
+  reference_date: "2011-12-10"
+  churn_threshold_days: 90
+
+model:
+  test_size: 0.2
+  random_state: 42
+  cv_folds: 5
+
+mlflow:
+  experiment_name: online_retail_churn
+  model_name: churn_classifier_prod
+  registry_stage: Production
+
+api:
+  host: 127.0.0.1
+  port: 8000
