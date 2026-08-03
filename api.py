@@ -54,6 +54,12 @@ def root():
     }
 
 
+@app.get("/health")
+def health():
+    """Simple readiness endpoint for monitoring and smoke checks."""
+    return {"status": "ok"}
+
+
 @app.post("/predict")
 def churn_predict(customer: Customer):
     """
@@ -66,7 +72,7 @@ def churn_predict(customer: Customer):
         churn_probability: Float between 0 and 1
         churn_flag: Binary classification (0=retain, 1=churn)
     """
-    df = pd.DataFrame([customer.dict()])
+    df = pd.DataFrame([customer.model_dump()])
     result = predict(df)
     return result.to_dict(orient="records")[0]
 
@@ -82,7 +88,7 @@ def batch_churn_predict(customers: list[Customer]):
     Returns:
         List of predictions with churn_probability and churn_flag
     """
-    df = pd.DataFrame([c.dict() for c in customers])
+    df = pd.DataFrame([c.model_dump() for c in customers])
     result = predict(df)
     return result.to_dict(orient="records")
 

@@ -108,6 +108,9 @@ def build_features(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     churn_days = int(cfg["features"]["churn_threshold_days"])
 
     df = df.copy()
+    df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"], errors="coerce")
+    df["Customer ID"] = pd.to_numeric(df["Customer ID"], errors="coerce")
+
     # Ensure required columns
     if "Quantity" in df.columns and ("Price" in df.columns or "UnitPrice" in df.columns):
         price_col = "Price" if "Price" in df.columns else "UnitPrice"
