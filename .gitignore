@@ -10,7 +10,7 @@ data/interim/
 data/processed/
 mlruns/
 models/*.pkl
-*.joblib
+!model.joblib
 .ipynb_checkpoints/
 
 # Local MLflow / DVC runtime artifacts
