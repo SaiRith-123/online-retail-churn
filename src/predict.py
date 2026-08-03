@@ -4,10 +4,13 @@ Real-time and batch inference module for churn prediction.
 Loads trained model from MLflow model registry and makes predictions
 on new customer data.
 """
+import os
 import pandas as pd
 import mlflow
 import mlflow.sklearn
 from src.data.ingest import load_config
+
+mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"))
 
 
 def load_model(stage="Production"):

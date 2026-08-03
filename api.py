@@ -19,7 +19,6 @@ app = FastAPI(
 
 class Customer(BaseModel):
     """Customer features for churn prediction."""
-    recency: int
     frequency: int
     monetary: float
     total_items: int
@@ -28,11 +27,10 @@ class Customer(BaseModel):
     country: str
     tenure_days: int
     avg_days_between_purchases: float
-    
-    class Config:
-        schema_extra = {
+
+    model_config = {
+        "json_schema_extra": {
             "example": {
-                "recency": 45,
                 "frequency": 12,
                 "monetary": 2500.50,
                 "total_items": 287,
@@ -43,6 +41,7 @@ class Customer(BaseModel):
                 "avg_days_between_purchases": 30
             }
         }
+    }
 
 
 @app.get("/")

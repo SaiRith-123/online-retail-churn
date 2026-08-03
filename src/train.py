@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import pandas as pd
 import numpy as np
 import mlflow
-import mlflow.sklearn
+import mlflow.sklearn as mlflow_sklearn
 import yaml
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
@@ -52,9 +52,12 @@ def evaluate(y_true, y_pred, y_proba):
 
 def train():
     cfg = load_config()
+    tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+    mlflow.set_tracking_uri(tracking_uri)
     df = load_features(cfg)
 
-    numeric_feats = ["recency", "frequency", "monetary", "total_items",
+        # Removed "recency" to prevent data leakage!
+    numeric_feats = ["frequency", "monetary", "total_items",
                      "avg_basket_size", "n_unique_products", "tenure_days",
                      "avg_days_between_purchases"]
     cat_feats = ["country"]
@@ -95,7 +98,7 @@ def train():
             mlflow.log_params(model.get_params())
             mlflow.log_param("model_name", name)
             mlflow.log_metrics(metrics)
-            mlflow.sklearn.log_model(
+            mlflow_sklearn.log_model(
                 pipe,
                 name="model",
                 skops_trusted_types=[
@@ -119,12 +122,23 @@ def train():
             if best_run is None or metrics["roc_auc"] > best_run["roc_auc"]:
                 best_run = {"name": name, "run_id": run.info.run_id, **metrics}
 
+    if best_run is None:
+        raise RuntimeError("Training did not produce a valid model run.")
+
     print(f"\n✅ Best model: {best_run['name']} (AUC={best_run['roc_auc']:.4f})")
 
-    # Register best model
-    mlflow.register_model(
+    # Register best model and promote it to Production
+    model_details = mlflow.register_model(
         model_uri=f"runs:/{best_run['run_id']}/model",
         name="churn_classifier_prod"
+    )
+
+    client = mlflow.MlflowClient()
+    client.transition_model_version_stage(
+        name="churn_classifier_prod",
+        version=model_details.version,
+        stage="Production",
+        archive_existing_versions=True,
     )
 
 

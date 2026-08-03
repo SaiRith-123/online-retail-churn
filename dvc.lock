@@ -1,0 +1,30 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python -m src.pipeline
+    deps:
+    - path: data/raw/online_retail_II.csv
+      hash: md5
+      md5: b976b68a99a7131a981e285753b68bb6
+      size: 94850204
+    - path: src/data/clean.py
+      hash: md5
+      md5: f0e92105ce1414f623126bb437ca1fa6
+      size: 918
+    - path: src/data/features.py
+      hash: md5
+      md5: 2f3b5868cb2a784f9a63eb9e6ceffa97
+      size: 5281
+    - path: src/data/ingest.py
+      hash: md5
+      md5: 2581ce6208d84a1f825d39ade8c76d09
+      size: 612
+    - path: src/pipeline.py
+      hash: md5
+      md5: f5cb9269906fc8a8a8bdb839da73a754
+      size: 885
+    outs:
+    - path: data/processed/customer_features.parquet
+      hash: md5
+      md5: 40df4f65b741afc0337fa63ad1890ecd
+      size: 318751

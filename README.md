@@ -1,249 +1,112 @@
-# Online Retail Churn Prediction
+# 🛒 Online Retail Customer Churn Prediction
 
-A machine learning project for predicting customer churn in online retail.
+An end-to-end MLOps project to predict customer churn using the Online Retail II dataset. The pipeline covers data ingestion, cleaning, feature engineering, model training with MLflow tracking, and real-time inference with FastAPI.
 
-## Project Structure
+## 🏗️ Project Architecture
 
-```
-online-retail-churn/
-├── config/                  # Configuration files
-│   └── config.yaml
-├── data/
-│   ├── raw/                # Original data (DVC-tracked)
-│   ├── interim/            # Intermediate processing
-│   └── processed/          # Final data for modeling
-├── notebooks/              
-│   └── 01_eda.ipynb        # Exploratory Data Analysis
-├── src/                    # Source code
-│   ├── data/
-│   │   ├── ingest.py       # Data ingestion
-│   │   ├── clean.py        # Data cleaning
-│   │   └── features.py     # Feature engineering
-│   ├── pipeline.py         # ML pipeline orchestration
-│   ├── train.py            # Model training
-│   └── predict.py          # Prediction logic
-├── mlruns/                 # MLflow tracking
-├── models/                 # Trained models
-└── tests/                  # Unit tests
-```
+- **Data Pipeline**: Cleans raw transactional data and engineers RFM-style customer features.
+- **Model Training**: Trains a Random Forest classifier with SMOTE to handle class imbalance.
+- **Experiment Tracking**: MLflow logs model metrics, parameters, and artifacts.
+- **Model Registry**: The best run is registered to the MLflow model registry under the `Production` stage.
+- **Real-Time API**: FastAPI exposes a prediction endpoint for live churn scoring.
 
-## Setup
+## 🚀 How to Run This Project
 
-1. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+### 1. Setup Environment
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Usage
-
-### 1. Data Pipeline (Reproducible via DVC)
-
-Orchestrate the full data pipeline:
 ```bash
-# Option A: Direct Python execution
-python -m src.pipeline
-
-# Option B: DVC reproducibility (tracks all stages)
-dvc repro
+python -m venv .venv
+source .venv/bin/activate   # macOS / Linux
+# OR
+.\.venv\Scripts\Activate.ps1   # Windows PowerShell
+pip install -r requirements.txt
 ```
 
-This ingests raw CSV → cleans data → engineers RFM+ features → saves processed parquet.
+### 2. Place the Dataset
 
-### 2. Model Training (MLflow Experiment Tracking)
+Put `online_retail_II.csv` in the `data/raw/` folder before running the pipeline.
 
-Train all candidate models with SMOTE for imbalance handling:
+### 3. Run the Data Pipeline
+
 ```bash
-python -m src.train
+python src/pipeline.py
 ```
 
-**Models Trained:**
-- Logistic Regression (baseline, interpretable)
-- Random Forest (robust, strong generalization)
-- XGBoost (best performance after tuning)
+This step ingests the raw CSV, cleans the transactions, engineers customer features, and writes the processed features to parquet.
 
-**Typical Results (with SMOTE + Stratified K-Fold CV):**
-| Model | ROC-AUC | F1 | Precision | Recall | Notes |
-|-------|---------|-----|-----------|--------|-------|
-| Logistic Reg. | ~0.9999 | 0.989 | 1.000 | 0.978 | Baseline, interpretable |
-| **Random Forest** | **1.0000** | **1.000** | **1.000** | **1.000** | ✅ **Best** variant, strong |
-| XGBoost | 1.0000 | 1.000 | 1.000 | 1.000 | Peak tuneable performance |
+### 4. Train the Model and Log to MLflow
 
-All metrics logged to MLflow at `mlruns/`.
+On macOS/Linux:
 
-### 3. Experiment Tracking (MLflow UI)
-
-Launch the MLflow tracking server:
 ```bash
-mlflow ui --host 127.0.0.1 --port 5000
+export MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+python src/train.py
 ```
 
-Access at: **http://127.0.0.1:5000**
+On Windows PowerShell:
 
-From the UI you can:
-- Compare model metrics (ROC-AUC, F1, precision, recall)
-- Review hyperparameters per run
-- Promote best models to Production via the Model Registry
+```powershell
+$env:MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
+python src/train.py
+```
 
-### 4. Real-Time Inference
+### 5. View the MLflow Dashboard
 
-**Batch Inference (Python):**
 ```bash
-python -m src.predict
+mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
 
-**REST API (FastAPI):**
+Open [http://localhost:5000](http://localhost:5000/) to review experiments and metrics.
+
+### 6. Serve Real-Time Predictions
+
 ```bash
 uvicorn api:app --reload
 ```
 
-Access interactive docs at: **http://127.0.0.1:8000/docs**
+Open [http://localhost:8000/docs](http://localhost:8000/docs) to test the API interactively.
 
-**Example cURL request:**
+---
+
+## ✅ Final Validation
+
+### 1. Run the Tests
+
 ```bash
-curl -X POST "http://127.0.0.1:8000/predict" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "recency": 45,
-    "frequency": 12,
-    "monetary": 2500.50,
-    "total_items": 287,
-    "avg_basket_size": 23.92,
-    "n_unique_products": 85,
-    "country": "United Kingdom",
-    "tenure_days": 365,
-    "avg_days_between_purchases": 30
-  }'
+pytest tests/
 ```
 
-**Response:**
+You should see a passing pytest result for the repository test suite.
+
+### 2. Start the API
+
+```bash
+uvicorn api:app --reload
+```
+
+### 3. Test the API
+
+Go to [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs), open `POST /predict`, then click **Try it out** and submit the sample payload below:
+
 ```json
 {
-  "churn_probability": 0.12,
-  "churn_flag": 0
+  "frequency": 2,
+  "monetary": 50.0,
+  "total_items": 5,
+  "avg_basket_size": 25.0,
+  "n_unique_products": 3,
+  "country": "United Kingdom",
+  "tenure_days": 200,
+  "avg_days_between_purchases": 100.0
 }
 ```
 
-## Pipeline Stages
+The response will include a churn probability and predicted churn flag.
 
-### 1. Data Ingestion (`src/data/ingest.py`)
-- Loads YAML config with cleaning rules, reference date, churn threshold
-- Reads raw CSV with proper encoding (ISO-8859-1)
-- Returns clean DataFrame
-
-### 2. Data Cleaning (`src/data/clean.py`)
-- Drops cancelled invoices (starting with 'C')
-- Removes null customer IDs, negative quantities, non-positive prices
-- Removes postage items
-- Casts Customer ID to int, handles duplicates
-
-### 3. Feature Engineering (`src/data/features.py`)
-**RFM Features:**
-- **Recency**: Days since last purchase
-- **Frequency**: Number of transactions
-- **Monetary**: Total spend
-
-**Behavioral Features:**
-- Total items purchased
-- Average basket size
-- Number of unique products
-- Country
-- Tenure (days since first purchase)
-- Average days between purchases
-
-**Churn Label:**
-- Binary: 1 if no purchase in 90 days (configurable), else 0
-
-### 4. Model Training (`src/train.py`)
-**Preprocessing:**
-- StandardScaler for numeric features
-- OneHotEncoder for categorical (country)
-- SMOTE for imbalance handling (synthetic minority oversampling)
-
-**Cross-Validation:** Stratified K-Fold (5 folds)
-
-**Metrics:** ROC-AUC (primary), F1, precision, recall, accuracy
-
-**Best Model Registration:** Automatically registered as `churn_classifier_prod`
-
-### 5. Inference (`src/predict.py` + `api.py`)
-- Loads model from MLflow Model Registry (Production stage)
-- Generates churn probability (0-1) and binary flag (0/1)
-- Supports single and batch predictions
-- FastAPI REST endpoint for production serving
-
-## Configuration
-
-Edit `config/config.yaml` to customize:
-```yaml
-data:
-  processed_path: data/processed/customer_features.parquet
-
-cleaning:
-  drop_null_customer_id: true
-  drop_cancelled_invoices: true
-  drop_negative_quantity: true
-  drop_non_positive_price: true
-  drop_postage: true
-
-features:
-  reference_date: "2011-12-10"  # Date to calculate recency from
-  churn_threshold_days: 90      # Days without purchase = churn
-
-model:
-  test_size: 0.2
-  random_state: 42
-  cv_folds: 5
-```
-
-## Git Workflow
-
-We use a feature-branch strategy with conventional commits:
+## 🧪 Save Everything to Git
 
 ```bash
-# Create feature branch
-git checkout -b feature/your-feature
-
-# Commit with conventional format
-git commit -m "feat: add new feature" 
-git commit -m "fix: resolve bug"
-git commit -m "docs: update README"
-
-# Push and create PR
-git push -u origin feature/your-feature
+git add .
+git commit -m "feat: finalize end-to-end churn project with API and tests"
+git push
 ```
-
-**Branches:**
-- `main` — stable, production-ready (tagged releases)
-- `dev` — integration branch
-- `feature/*` — feature development
-- `experiment/*` — ML experiments & hyperparameter tuning
-
-## Reproducibility
-
-DVC tracks all pipeline stages and intermediate data:
-
-```bash
-# Reproduce entire pipeline
-dvc repro
-
-# View pipeline DAG
-dvc dag
-
-# Push data to remote storage
-dvc push
-
-# Pull data from remote
-dvc pull
-```
-
-Remote storage configured at: `dvc_remote/` (local, in-repo)
-
-## Requirements
-
-See `requirements.txt` for dependencies.

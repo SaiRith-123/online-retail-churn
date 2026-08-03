@@ -13,5 +13,9 @@ models/*.pkl
 *.joblib
 .ipynb_checkpoints/
 
+# Local MLflow / DVC runtime artifacts
+mlflow.db
+dvc_remote/
+
 # OS
 .DS_Store
