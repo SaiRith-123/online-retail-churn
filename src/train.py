@@ -2,7 +2,7 @@ import pandas as pd
 import mlflow
 import mlflow.sklearn
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from xgboost import XGBClassifier
 from sklearn.metrics import roc_auc_score, f1_score, classification_report
@@ -14,10 +14,11 @@ def train():
     cfg = load_config()
     df = pd.read_parquet(cfg["data"]["processed_path"])
 
-    # We removed "recency" here to prevent data leakage!
+        # We removed "recency", "tenure_days", and "avg_days_between_purchases" —
+    # all three are derived from last_purchase, which correlates almost
+    # perfectly with the churn label (recency > 90 days).
     numeric_feats = ["frequency", "monetary", "total_items",
-                     "avg_basket_size", "n_unique_products", "tenure_days",
-                     "avg_days_between_purchases"]
+                     "avg_basket_size", "n_unique_products"]
     cat_feats = ["country"]
 
     X = df[numeric_feats + cat_feats]
@@ -30,7 +31,7 @@ def train():
     # 1. Setup the Preprocessing
     pre = ColumnTransformer([
         ("num", StandardScaler(), numeric_feats),
-        ("cat", "passthrough", cat_feats),
+        ("cat", OneHotEncoder(handle_unknown='ignore'), cat_feats),
     ])
     
     # 2. Calculate class imbalance ratio for XGBoost
@@ -81,7 +82,18 @@ def train():
         # Log the best parameters found by the Grid Search
         mlflow.log_params(grid.best_params_)
         mlflow.log_metrics(metrics)
-        mlflow.sklearn.log_model(best_model, artifact_path="model")
+        
+        mlflow.sklearn.log_model(
+            best_model, 
+            artifact_path="model",
+            skops_trusted_types=[
+                'imblearn.over_sampling._smote.base.SMOTE', 
+                'imblearn.pipeline.Pipeline', 
+                'scipy.sparse._csr.csr_matrix', 
+                'xgboost.core.Booster', 
+                'xgboost.sklearn.XGBClassifier'
+            ]
+        )
 
         print("\n=== Training Complete! ===")
         print(f"Best Parameters Found: {grid.best_params_}")
